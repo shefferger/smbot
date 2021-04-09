@@ -41,7 +41,7 @@ constructor = [
 
 def time_remain(chat_id):
     mins, secs = divmod((data[chat_id]['timer_start'] +
-                         datetime.timedelta(minutes=data[chat_id]['interval']) -
+                         datetime.timedelta(minutes=data[chat_id]['interval_from_start']) -
                          datetime.datetime.now()).seconds, 60)
     return mins, secs
 
@@ -82,11 +82,11 @@ def notifier(chat_id):
     bot.send_message(chat_id=chat_id, reply_markup=get_keyboard(), text=msg)
 
 
-def start_timer(tm, cid, update_st_timer=True, updated_time=datetime.datetime.now()):
+def start_timer(tm, cid, update_st_timer=True):
     global data
     data[cid]['interval_from_start'] = tm
     if update_st_timer:
-        data[cid]['timer_start'] = updated_time
+        data[cid]['timer_start'] = datetime.datetime.now()
     timers[cid] = [Timer(tm * 60, notifier, args=(cid,))]
     print('\nTimer started ' + str(tm))
     timers[cid][-1].start()
@@ -109,6 +109,14 @@ def start_help_handler(message):
             bot.send_message(message.chat.id, 'Не выпендривайся, таймер уже активен')
 
 
+def end_day(days_wait, chat_id):
+    tmrw = datetime.datetime.now() + datetime.timedelta(days=days_wait)
+    next_time = datetime.datetime(tmrw.year, tmrw.month, tmrw.day, 10, 0, 0) + \
+                datetime.timedelta(minutes=data[chat_id]['interval'])
+    mins, secs = time_remain(next_time)
+    return mins
+
+
 @bot.message_handler(
     func=lambda message: message.text is not None and 'Мы покурили' in message.text and message.content_type == 'text')
 def smok_handler(message):
@@ -120,12 +128,13 @@ def smok_handler(message):
         return
     bot.send_message(message.chat.id, random.choice(list(emoji.values())) + ' ' + smok_ph.get_phrase())
     delay = data[message.chat.id]['interval']
-    if datetime.datetime.now().hour >= 17:
-        bot.send_message(message.chat.id, 'До завтра!')
-        delay = 1080  # 64800s = 18h = 1080 min
-        if datetime.datetime.today().weekday() == 4:
-            bot.send_message(message.chat.id, 'Точнее, до понедельника ' + emoji['cool'])
-            delay = 3980
+    if datetime.datetime.now().hour >= 17 or datetime.datetime.now().hour <= 9:
+        msg = 'Увидимся завтра!'
+        delay = end_day(1, message.chat.id)
+        if datetime.datetime.today().weekday() >= 4:
+            msg = 'До понедельника) Хороших выходных! ' + emoji['cool']
+            delay = end_day(3, message.chat.id)
+        bot.send_message(message.chat.id, msg)
     start_timer(delay, message.chat.id)
     save()
 
@@ -253,22 +262,16 @@ def smok_handler(message):
         return
     if timers[message.chat.id]:
         mins, secs = time_remain(message.chat.id)
+        timers[message.chat.id][-1].cancel()
+        mult = 2
         if mins <= 2:
-            timers[message.chat.id][-1].cancel()
             bot.send_message(message.chat.id, 'Окей, продлю на 2 минуты')
-            start_timer(mins + (secs / 60) + 2, message.chat.id,
-                        updated_time=datetime.datetime.now() - datetime.timedelta(
-                            minutes=data[message.chat.id]['interval'] - (mins + (secs / 60) + 2)))
+            mult += mins + (secs / 60)
         else:
-            timers[message.chat.id][-1].cancel()
             bot.send_message(message.chat.id, 'Не вопрос, пойдете через 2 минуты')
-            start_timer(2, message.chat.id,
-                        updated_time=datetime.datetime.now() - datetime.timedelta(
-                            minutes=data[message.chat.id]['interval'] - 2))
+        start_timer(mult, message.chat.id)
     else:
-        start_timer(2, message.chat.id,
-                    updated_time=datetime.datetime.now() - datetime.timedelta(
-                        minutes=data[message.chat.id]['interval'] - 2))
+        start_timer(2, message.chat.id)
         bot.send_message(message.chat.id, 'Хорошо, позову через 2 минуты')
 
 

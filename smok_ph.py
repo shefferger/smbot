@@ -24,10 +24,14 @@ def save():
 
 
 def get_allphrases():
+    if not smoke_phrases:
+        return ['Фраз нет, но вы держитесь']
     return smoke_phrases
 
 
 def get_timeleft_phrase():
+    if not timeleft_phrases:
+        return ['Фраз нет, но вы держитесь']
     return timeleft_phrases[random.randint(0, len(timeleft_phrases) - 1)]
 
 
