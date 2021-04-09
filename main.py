@@ -9,6 +9,7 @@ import smok_ph
 import telebot
 import os
 import pickle
+import stat
 
 data = {'default': {
     'interval': 50.0,
@@ -135,6 +136,7 @@ def smok_handler(message):
             msg = 'До понедельника) Хороших выходных! ' + emoji['cool']
             delay = end_day(3, message.chat.id)
         bot.send_message(message.chat.id, msg)
+    stat.register(message.chat.id, 'smoking')
     start_timer(delay, message.chat.id)
     save()
 
@@ -149,6 +151,7 @@ def time_left_handler(message):
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
         return
     if timers[message.chat.id] and data[message.chat.id]['timer_start']:
+        stat.register(message.chat.id, 'timeleft')
         mins, secs = time_remain(message.chat.id)
         bot.send_message(message.chat.id, smok_ph.get_timeleft_phrase())
         bot.send_message(message.chat.id, 'До покура осталось ' + str(mins) + ' минут и ' + str(secs) + ' секунд.')
@@ -222,10 +225,22 @@ def smok_handler(message):
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
         return
     k = 0
+    msg = ''
     for i in smok_ph.get_allphrases():
-        msg = '(' + str(k) + ') ' + i
-        bot.send_message(message.chat.id, msg)
+        msg += '(' + str(k) + ') ' + i + '\n'
         k += 1
+    bot.send_message(message.chat.id, msg, parse_mode='HTML')
+
+
+@bot.message_handler(
+    func=lambda message: message.text is not None and '/stats' in message.text and message.content_type == 'text')
+def stats_handler(message):
+    if message.from_user.id not in admins:
+        bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
+        return
+    stats = stat.get_stats(message.chat.id)
+    msg = 'История\n'
+    bot.send_message(message.chat.id, msg, parse_mode='HTML')
 
 
 @bot.message_handler(
@@ -236,6 +251,7 @@ def weather_handler(message):
         msg = forecast
     else:
         msg = 'Прогноз погоды недоступен, проблемы с их АПИ'
+    stat.register(message.chat.id, 'weather')
     bot.send_message(message.chat.id, msg)
 
 
@@ -250,8 +266,8 @@ def kbupdate_handler(message):
 def info_handler(message):
     msg = ''
     for i in data[message.chat.id].keys():
-        msg += str(i) + ' >> ' + str(data[message.chat.id][i])
-    bot.send_message(message.chat.id, msg)
+        msg += str(i) + ' >> ' + str(data[message.chat.id][i]) + '\n'
+    bot.send_message(message.chat.id, 'Информация о чате\n' + msg, parse_mode='HTML')
 
 
 @bot.message_handler(func=lambda
@@ -260,6 +276,7 @@ def smok_handler(message):
     global data
     if message.chat.id not in data.keys():
         return
+    stat.register(message.chat.id, '2mins')
     if timers[message.chat.id]:
         mins, secs = time_remain(message.chat.id)
         timers[message.chat.id][-1].cancel()
