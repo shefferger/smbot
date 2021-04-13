@@ -1,0 +1,15 @@
+[Unit]
+Description= SMBot instance
+After=network.target
+
+[Service]
+User=smbot
+Group=smbot
+WorkingDirectory=/srv/smbot
+Environment="PATH=/srv/smbot/venv/bin"
+ExecStart=/srv/smbot/venv/bin/python3 /srv/smbot/main.py
+Restart=on-failure
+RestartSec=30s
+
+[Install]
+WantedBy=multi-user.target

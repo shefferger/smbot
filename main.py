@@ -1,5 +1,7 @@
 #!venv/bin/python3
 from threading import Timer
+
+import coins
 from keyboard import get_keyboard
 from weathercast import get_current_weather
 from secrets import TG_TOKEN
@@ -9,7 +11,7 @@ import smok_ph
 import telebot
 import os
 import pickle
-import stat
+import statsm
 
 data = {'default': {
     'interval': 50.0,
@@ -40,25 +42,26 @@ constructor = [
      'подышать.']]
 
 
-def time_remain(chat_id):
-    mins, secs = divmod((data[chat_id]['timer_start'] +
-                         datetime.timedelta(minutes=data[chat_id]['interval_from_start']) -
-                         datetime.datetime.now()).seconds, 60)
-    return mins, secs
+def get_timeleft(time_started, time_interval):
+    days = 0
+    while time_interval > 1440:
+        days += 1
+        time_interval -= 1440
+    if time_started + datetime.timedelta(minutes=time_interval) > datetime.datetime.now():
+        mins, secs = divmod((time_started - datetime.datetime.now() +
+                             datetime.timedelta(minutes=time_interval)).seconds, 60)
+    else:
+        mins, secs = 0, 1
+    return mins + (days * 1440), secs
 
 
 def on_startup():
     for chat in data.keys():
         if chat != 'default':
             timers[chat] = []
-            if data[chat]['timer_start'] + datetime.timedelta(minutes=data[chat]['interval']) > datetime.datetime.now():
-                mins, secs = time_remain(chat)
-            else:
-                mins = 0
-                secs = 10
-            bot.send_message(chat, 'Я только включился. По идее вы пойдете курить через ' +
-                             str(mins) + ' мин. и ' + str(secs) + ' сек.')
-            start_timer(mins + secs / 60, chat, False)
+            print(f'[STARTUP] {data[chat]}')
+            mins, secs = get_timeleft(data[chat]['timer_start'], data[chat]['interval_from_start'])
+            start_timer(mins + secs / 60, chat)
 
 
 def save():
@@ -81,6 +84,7 @@ def notifier(chat_id):
     timers[chat_id] = []
     save()
     bot.send_message(chat_id=chat_id, reply_markup=get_keyboard(), text=msg)
+    print(f'[END TIMER] Timer stopped at {datetime.datetime.now()} for chat {chat_id}')
 
 
 def start_timer(tm, cid, update_st_timer=True):
@@ -89,8 +93,20 @@ def start_timer(tm, cid, update_st_timer=True):
     if update_st_timer:
         data[cid]['timer_start'] = datetime.datetime.now()
     timers[cid] = [Timer(tm * 60, notifier, args=(cid,))]
-    print('\nTimer started ' + str(tm))
+    print(f'[START TIMER] Timer started for chat {str(cid)} with {str(tm)} minutes.\n'
+          f'[START TIMER] Should be ended at {data[cid]["timer_start"] + datetime.timedelta(minutes=tm)}')
     timers[cid][-1].start()
+    save()
+
+
+@bot.message_handler(
+    func=lambda message: message.text is not None and '/coin ' in message.text and message.content_type == 'text')
+def crypto_hanler(message):
+    vals = message.text.replace('/coin ', '').split(' ')
+    if len(vals) != 2:
+        bot.send_message(message.chat.id, 'Неверно указаны тикеры валют')
+        return
+    bot.send_message(message.chat.id, coins.get_rate(vals[0], vals[1]), parse_mode='HTML')
 
 
 @bot.message_handler(commands=['start'])
@@ -114,7 +130,7 @@ def end_day(days_wait, chat_id):
     tmrw = datetime.datetime.now() + datetime.timedelta(days=days_wait)
     next_time = datetime.datetime(tmrw.year, tmrw.month, tmrw.day, 10, 0, 0) + \
                 datetime.timedelta(minutes=data[chat_id]['interval'])
-    mins, secs = time_remain(next_time)
+    mins = (next_time - datetime.datetime.now()).total_seconds() / 60
     return mins
 
 
@@ -129,16 +145,20 @@ def smok_handler(message):
         return
     bot.send_message(message.chat.id, random.choice(list(emoji.values())) + ' ' + smok_ph.get_phrase())
     delay = data[message.chat.id]['interval']
-    if datetime.datetime.now().hour >= 17 or datetime.datetime.now().hour <= 9:
+    dtn = datetime.datetime.now()
+    if dtn.hour >= 17 or (dtn.hour == 16 and dtn.minute >= 35):
         msg = 'Увидимся завтра!'
         delay = end_day(1, message.chat.id)
+        print(f'Day ended for chat {message.chat.id}, delay setted to {delay} mins')
         if datetime.datetime.today().weekday() >= 4:
             msg = 'До понедельника) Хороших выходных! ' + emoji['cool']
             delay = end_day(3, message.chat.id)
+            print(f'Week ended for chat {message.chat.id}, delay setted to {delay} mins')
         bot.send_message(message.chat.id, msg)
-    stat.register(message.chat.id, 'smoking')
-    start_timer(delay, message.chat.id)
+    print(f'Saving delay {delay} to chat {message.chat.id}')
     save()
+    statsm.register(message.chat.id, 'smoking')
+    start_timer(delay, message.chat.id)
 
 
 @bot.message_handler(func=lambda message: message.text is not None and (
@@ -151,10 +171,25 @@ def time_left_handler(message):
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
         return
     if timers[message.chat.id] and data[message.chat.id]['timer_start']:
-        stat.register(message.chat.id, 'timeleft')
-        mins, secs = time_remain(message.chat.id)
+        statsm.register(message.chat.id, 'timeleft')
+        mins, secs = get_timeleft(data[message.chat.id]['timer_start'], data[message.chat.id]['interval_from_start'])
         bot.send_message(message.chat.id, smok_ph.get_timeleft_phrase())
-        bot.send_message(message.chat.id, 'До покура осталось ' + str(mins) + ' минут и ' + str(secs) + ' секунд.')
+        hours = 0
+        msg = f'<b>{mins} мин</b> и {secs} сек.'
+        if mins >= 60:
+            hours, mins = divmod(mins, 60)
+            msg = f'<b>{hours} часов</b> и {mins} мин.'
+        elif mins == 0:
+            msg = f'<b>{secs} сек</b>.'
+        if hours >= 24:
+            days, hours = divmod(hours, 24)
+            msg = f'<b>{days} дней</b>, {hours} часов и {mins} мин.'
+        bot.send_message(message.chat.id, 'До покура осталось ' + msg, parse_mode='HTML')
+    else:
+        msg = f'Уже пора давно пойти курить.\n\nЕсли что, стандартный интервал был установлен на ' \
+              f'{data[message.chat.id]["interval"]} минут, а последний раз использовался интервал в ' \
+              f'{data[message.chat.id]["interval_from_start"]} мин.'
+        bot.send_message(message.chat.id, msg, parse_mode='HTML')
 
 
 @bot.message_handler(
@@ -213,6 +248,8 @@ def phrasedel_handler(message):
         ph_id = int(stext)
     except ValueError:
         bot.send_message(message.chat.id, 'ID неправильный')
+    except IndexError:
+        bot.send_message(message.chat.id, 'ID неправильный')
     if ph_id != -1:
         smok_ph.del_phrase(ph_id)
         bot.reply_to(message, 'Фраза удалена')
@@ -238,8 +275,26 @@ def stats_handler(message):
     if message.from_user.id not in admins:
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
         return
-    stats = stat.get_stats(message.chat.id)
-    msg = 'История\n'
+    stats = statsm.get_stats(message.chat.id)
+    msg = 'История\n\n'
+    action_dict = {
+        'smoking': 'Покур',
+        'timeleft': 'Запрос времени до покура',
+        '2mins': 'Перенос на 2 минуты',
+        'weather': 'Запрос погоды'
+    }
+    for action in stats.keys():
+        if action in action_dict.keys():
+            action_translated = action_dict[action]
+        else:
+            action_translated = action
+        msg += f'<b>{action_translated}</b>\n'
+        for date in stats[action].keys():
+            msg += 'Дата: ' + date.strftime("%d-%m-%Y") + '\n'
+            for k in stats[action][date]:
+                msg += k.strftime("%H:%M:%S") + '\n'
+        msg += '\n'
+    print(msg)
     bot.send_message(message.chat.id, msg, parse_mode='HTML')
 
 
@@ -251,7 +306,7 @@ def weather_handler(message):
         msg = forecast
     else:
         msg = 'Прогноз погоды недоступен, проблемы с их АПИ'
-    stat.register(message.chat.id, 'weather')
+    statsm.register(message.chat.id, 'weather')
     bot.send_message(message.chat.id, msg)
 
 
@@ -276,9 +331,9 @@ def smok_handler(message):
     global data
     if message.chat.id not in data.keys():
         return
-    stat.register(message.chat.id, '2mins')
+    statsm.register(message.chat.id, '2mins')
     if timers[message.chat.id]:
-        mins, secs = time_remain(message.chat.id)
+        mins, secs = get_timeleft(data[message.chat.id]['timer_start'], data[message.chat.id]['interval_from_start'])
         timers[message.chat.id][-1].cancel()
         mult = 2
         if mins <= 2:
