@@ -24,7 +24,7 @@ def save():
 
 
 # actions: smoking, weather, 2mins, timeleft
-def register(chat_id, action='smoking'):
+def register(chat_id, action: str):
     global chats
     date = datetime.date.today()
     time = datetime.datetime.today().time()

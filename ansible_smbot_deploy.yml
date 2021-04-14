@@ -1,4 +1,4 @@
-- name: Deploy smbot
+- name: Deploying smbot
   hosts: smbot
   become: yes
 
@@ -27,12 +27,12 @@
       mode: 0644
     when: not smbot_s.stat.exists
   
-  - name: Reloading daemon
+  - name: Reloading daemons configs
     systemd:
       daemon_reload: yes
     when: not smbot_s.stat.exists
 
-  - name: Enabling daemon
+  - name: Enabling smbot daemon
     systemd:
       name: smbot
       state: stopped
@@ -54,6 +54,7 @@
     - smok_ph.py
     - requirements.txt
     - coins.py
+    - bj.py
     notify: Restart bot
 
   handlers:

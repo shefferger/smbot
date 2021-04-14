@@ -60,10 +60,11 @@ def on_startup():
         if chat != 'default':
             if 'is_active' not in data[chat].keys():
                 data[chat]['is_active'] = True
-            timers[chat] = []
-            print(f'[STARTUP] {data[chat]}')
-            mins, secs = get_timeleft(data[chat]['timer_start'], data[chat]['interval_from_start'])
-            start_timer(mins + secs / 60, chat)
+            elif data[chat]['is_active']:
+                timers[chat] = []
+                print(f'[STARTUP] {data[chat]}')
+                mins, secs = get_timeleft(data[chat]['timer_start'], data[chat]['interval_from_start'])
+                start_timer(mins + secs / 60, chat)
 
 
 def save():
@@ -78,7 +79,7 @@ else:
         data = pickle.load(f)
 
 
-def notifier(chat_id):
+def notifier(chat_id: str):
     global data
     if not chat_active(chat_id):
         data[chat_id]['is_active'] = True
@@ -115,6 +116,7 @@ def crypto_hanler(message):
     if len(vals) != 2:
         bot.send_message(message.chat.id, 'Неверно указаны тикеры валют')
         return
+    statsm.register(message.chat.id, f'coin-{vals[0]}-{vals[1]}')
     bot.send_message(message.chat.id, coins.get_rate(vals[0], vals[1]), parse_mode='HTML')
 
 
@@ -128,6 +130,7 @@ def stop_handler(message):
                     i.cancel()
             data[message.chat.id]['is_active'] = False
             bot.send_message(message.chat.id, 'Чат успешно отключен от бота')
+            save()
 
 
 @bot.message_handler(commands=['start'])
@@ -147,6 +150,11 @@ def start_handler(message):
             start_timer(data[message.chat.id]['interval_from_start'], message.chat.id)
         else:
             bot.send_message(message.chat.id, 'Не выпендривайся, таймер уже активен')
+
+
+@bot.message_handler(commands=['blackjack'])
+def start_handler(message):
+    return
 
 
 def end_day(days_wait, chat_id):
