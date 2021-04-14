@@ -58,6 +58,8 @@ def get_timeleft(time_started, time_interval):
 def on_startup():
     for chat in data.keys():
         if chat != 'default':
+            if 'is_active' not in data[chat].keys():
+                data[chat]['is_active'] = True
             timers[chat] = []
             print(f'[STARTUP] {data[chat]}')
             mins, secs = get_timeleft(data[chat]['timer_start'], data[chat]['interval_from_start'])
@@ -78,6 +80,8 @@ else:
 
 def notifier(chat_id):
     global data
+    if not chat_active(chat_id):
+        data[chat_id]['is_active'] = True
     msg = ''
     for i in constructor:
         msg += i[random.randint(0, len(i) - 1)]
@@ -99,6 +103,11 @@ def start_timer(tm, cid, update_st_timer=True):
     save()
 
 
+def chat_active(chat_id: str) -> 'Chat ID':
+    global data
+    return data[chat_id]['is_active']
+
+
 @bot.message_handler(
     func=lambda message: message.text is not None and '/coin ' in message.text and message.content_type == 'text')
 def crypto_hanler(message):
@@ -109,16 +118,30 @@ def crypto_hanler(message):
     bot.send_message(message.chat.id, coins.get_rate(vals[0], vals[1]), parse_mode='HTML')
 
 
+@bot.message_handler(commands=['stop'])
+def stop_handler(message):
+    global data
+    if message.from_user.id in admins:
+        if message.chat.id in data.keys() and chat_active(message.chat.id):
+            if timers[message.chat.id]:
+                for i in timers[message.chat.id]:
+                    i.cancel()
+            data[message.chat.id]['is_active'] = False
+            bot.send_message(message.chat.id, 'Чат успешно отключен от бота')
+
+
 @bot.message_handler(commands=['start'])
-def start_help_handler(message):
+def start_handler(message):
     global emoji, data
     if message.from_user.id in admins:
         if message.chat.id not in data.keys():
             data[message.chat.id] = {'interval': data['default']['interval'],
                                      'interval_from_start': data['default']['interval_from_start'],
                                      'timer_start': data['default']['timer_start'],
-                                     'timers': []}
-            save()
+                                     'is_active': True}
+        elif not chat_active(message.chat.id):
+            data[message.chat.id]['is_active'] = True
+        save()
         if message.chat.id not in timers.keys():
             bot.send_message(message.chat.id, 'Я начал следить за Вашим покуром ' + emoji['eyes'])
             start_timer(data[message.chat.id]['interval_from_start'], message.chat.id)
@@ -138,7 +161,7 @@ def end_day(days_wait, chat_id):
     func=lambda message: message.text is not None and 'Мы покурили' in message.text and message.content_type == 'text')
 def smok_handler(message):
     global data
-    if message.chat.id not in data.keys():
+    if message.chat.id not in data.keys() or not chat_active(message.chat.id):
         return
     if timers[message.chat.id]:
         bot.send_message(message.chat.id, 'Вообще-то еще рано, жди уведомление!')
@@ -165,7 +188,7 @@ def smok_handler(message):
         '/time' in message.text or 'Сколько до кура?' in message.text) and message.content_type == 'text')
 def time_left_handler(message):
     global data
-    if message.chat.id not in data.keys():
+    if message.chat.id not in data.keys() or not chat_active(message.chat.id):
         return
     if message.from_user.id not in admins:
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
@@ -196,7 +219,7 @@ def time_left_handler(message):
     func=lambda message: message.text is not None and '/interval ' in message.text and message.content_type == 'text')
 def interval_handler(message):
     global data
-    if message.chat.id not in data.keys():
+    if message.chat.id not in data.keys() or not chat_active(message.chat.id):
         return
     if message.from_user.id not in admins:
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
@@ -225,6 +248,8 @@ def interval_handler(message):
 @bot.message_handler(
     func=lambda message: message.text is not None and '/addphrase ' in message.text and message.content_type == 'text')
 def phraseadd_handler(message):
+    if not chat_active(message.chat.id):
+        return
     if message.from_user.id not in admins:
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
         return
@@ -239,6 +264,8 @@ def phraseadd_handler(message):
 @bot.message_handler(
     func=lambda message: message.text is not None and '/delphrase ' in message.text and message.content_type == 'text')
 def phrasedel_handler(message):
+    if not chat_active(message.chat.id):
+        return
     if message.from_user.id not in admins:
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
         return
@@ -258,6 +285,8 @@ def phrasedel_handler(message):
 @bot.message_handler(
     func=lambda message: message.text is not None and '/list' in message.text and message.content_type == 'text')
 def smok_handler(message):
+    if not chat_active(message.chat.id):
+        return
     if message.from_user.id not in admins:
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
         return
@@ -272,6 +301,8 @@ def smok_handler(message):
 @bot.message_handler(
     func=lambda message: message.text is not None and '/stats' in message.text and message.content_type == 'text')
 def stats_handler(message):
+    if not chat_active(message.chat.id):
+        return
     if message.from_user.id not in admins:
         bot.reply_to(message, 'Только админы умеют это, а ты не админ(')
         return
@@ -313,6 +344,8 @@ def weather_handler(message):
 @bot.message_handler(func=lambda
         message: message.text is not None and '/keyboardupdate' in message.text and message.content_type == 'text')
 def kbupdate_handler(message):
+    if not chat_active(message.chat.id):
+        return
     bot.send_message(message.chat.id, emoji['smoke'], reply_markup=get_keyboard())
 
 
@@ -329,7 +362,7 @@ def info_handler(message):
         message: message.text is not None and 'Через 2 мин пойдем' in message.text and message.content_type == 'text')
 def smok_handler(message):
     global data
-    if message.chat.id not in data.keys():
+    if message.chat.id not in data.keys() or not chat_active(message.chat.id):
         return
     statsm.register(message.chat.id, '2mins')
     if timers[message.chat.id]:
