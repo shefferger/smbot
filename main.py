@@ -1,6 +1,7 @@
 #!venv/bin/python3
 from threading import Timer
 
+import bj
 import coins
 from keyboard import get_keyboard
 from weathercast import get_current_weather
@@ -152,9 +153,20 @@ def start_handler(message):
             bot.send_message(message.chat.id, 'Не выпендривайся, таймер уже активен')
 
 
-@bot.message_handler(commands=['blackjack'])
+@bot.message_handler(commands=['blackjack', 'bj'])
 def start_handler(message):
-    return
+
+    bot.send_message(message.chat.id, bj.start_game(message.chat.id), parse_mode='HTML')
+
+
+@bot.message_handler(func=lambda message: message.text is not None and 'Взять еще' in message.text and message.content_type == 'text')
+def start_handler(message):
+    bot.send_message(message.chat.id, bj.player_add(message.chat.id), parse_mode='HTML')
+
+
+@bot.message_handler(func=lambda message: message.text is not None and 'Достаточно' in message.text and message.content_type == 'text')
+def start_handler(message):
+    bot.send_message(message.chat.id, bj.player_stay(message.chat.id), parse_mode='HTML')
 
 
 def end_day(days_wait, chat_id):
