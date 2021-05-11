@@ -107,23 +107,27 @@ def start_game(chat_id):
         return 'Сначала доиграйте текущую партию!'
 
 
-def check_win(chat_id, dealer_hand: list, player_hand: list):
-    dealer_sum = get_hand_sum(dealer_hand)
-    player_sum = get_hand_sum(player_hand)
-    if (dealer_sum > 21 and player_sum > 21) or (dealer_sum == player_sum):
-        games[chat_id]['is_in_game'] = False
-        build_message(chat_id, True)
-        games[chat_id]['msg'] += '\n\n<b>Ничья!</b>'
-    else:
-        if (dealer_sum > 21 or (dealer_sum < 21 and player_sum
-                                == 21) or (21 >= player_sum > dealer_sum)) and player_sum <= 21:
-            games[chat_id]['is_in_game'] = False
-            build_message(chat_id, True)
-            games[chat_id]['msg'] += '\n\n<b>Поздравляю, вы победили!</b>'
-        else:
-            games[chat_id]['is_in_game'] = False
-            build_message(chat_id, True)
-            games[chat_id]['msg'] += '\n\n<b>Вы проиграли</b>'
+# def check_win(chat_id, dealer_hand: list, player_hand: list):
+#     dealer_sum = get_hand_sum(dealer_hand)
+#     player_sum = get_hand_sum(player_hand)
+#     if player_sum >= 21:
+#         dealer_add(chat_id, True)
+#     else:
+#         dealer_add(chat_id, False)
+#     if (dealer_sum > 21 and player_sum > 21) or (dealer_sum == player_sum):
+#         games[chat_id]['is_in_game'] = False
+#         build_message(chat_id, True)
+#         games[chat_id]['msg'] += '\n\n<b>Ничья!</b>'
+#     else:
+#         if (dealer_sum > 21 or (dealer_sum < 21 and player_sum
+#                                 == 21) or (21 >= player_sum > dealer_sum)) and player_sum <= 21:
+#             games[chat_id]['is_in_game'] = False
+#             build_message(chat_id, True)
+#             games[chat_id]['msg'] += '\n\n<b>Поздравляю, вы победили!</b>'
+#         else:
+#             games[chat_id]['is_in_game'] = False
+#             build_message(chat_id, True)
+#             games[chat_id]['msg'] += '\n\n<b>Вы проиграли</b>'
 
 
 def dealer_add(chat_id, fill=False):
@@ -140,30 +144,17 @@ def dealer_add(chat_id, fill=False):
 def player_add(chat_id, on_start=False):
     if not games[chat_id]['is_in_game']:
         return 'Сначала начните игру\n/bj'
-    player_summ = get_hand_sum(games[chat_id]['player_hand'])
     deck_size = len(games[chat_id]['deck'])
     games[chat_id]['player_hand'].append(games[chat_id]['deck'].pop(random.randint(0, deck_size - 1)))
-    if player_summ >= 21:
-        dealer_add(chat_id, True)
-        check_win(chat_id, games[chat_id]['dealer_hand'], games[chat_id]['player_hand'])
-    else:
-        dealer_add(chat_id, False)
-        if get_hand_sum(games[chat_id]['dealer_hand']) >= 21:
-            check_win(chat_id, games[chat_id]['dealer_hand'], games[chat_id]['player_hand'])
-    if on_start:
-        player_add(chat_id, False)
-    else:
-        build_message(chat_id)
-    player_summ = get_hand_sum(games[chat_id]['player_hand'])
-    dealer_summ = get_hand_sum(games[chat_id]['dealer_hand'])
-    print(f'\ndealer: {dealer_summ}\nplayer: {player_summ}')
+    dealer_add(chat_id, False)
+    build_message(chat_id)
+    check_win(chat_id, games[chat_id]['dealer_hand'], games[chat_id]['player_hand'])
     return games[chat_id]['msg']
 
 
 def player_stay(chat_id):
     if not games[chat_id]['is_in_game']:
         return 'Сначала начните игру\n<b>/bj</b>'
-    games[chat_id]['msg'] = '[BJ] '
     dealer_add(chat_id, True)
     build_message(chat_id)
     check_win(chat_id, games[chat_id]['dealer_hand'], games[chat_id]['player_hand'])

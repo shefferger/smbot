@@ -1,6 +1,7 @@
 import requests
 import os
 import pickle
+from yahoo_fin import stock_info as si
 from secrets import CURRENCY_API_KEY
 
 
@@ -28,6 +29,19 @@ def get_change(current, previous):
         return 0
 
 
+def get_diff_msg(ticker, rate):
+    old_rate = coins[ticker]
+    diff = round(rate - old_rate, 6)
+    diff_per = round(get_change(rate, old_rate), 8)
+    if diff >= 0.0:
+        t1 = emojis["up"] * (int(abs(diff_per) // 5))
+        t2 = f'\n {t1}\n{emojis["green"]} +'
+    else:
+        t1 = emojis["down"] * (int(abs(diff_per) // 5))
+        t2 = f'\n {t1}\n{emojis["red"]} '
+    return t2 + f'{str(diff_per) + "%"}'
+
+
 def get_rate(c_from, c_to):
     global emojis, coins
     try:
@@ -53,7 +67,22 @@ def get_rate(c_from, c_to):
         coins[c_from + c_to] = rate
         save()
     except Exception:
-        msg = 'Проблемы с АПИ либо неверно указан тикер'
+        msg = 'Проблемы с АПИ либо неверно указан тикеры валют :('
+    return msg
+
+
+def get_stock_rate(ticker):
+    try:
+        ticker = ticker.lower()
+        stock = si.get_quote_table(ticker)
+        rate = stock['Quote Price']
+        msg = f'{ticker.upper()} сейчас торгуется по {round(rate, 4)}'
+        if ticker in coins.keys():
+            msg += get_diff_msg(ticker, rate)
+        coins[ticker] = rate
+        save()
+    except Exception:
+        msg = 'Проблемы с АПИ либо неверно указан тикер акции :(\n(пока что я работаю только с NASDAQ)'
     return msg
 
 

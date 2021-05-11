@@ -121,6 +121,14 @@ def crypto_hanler(message):
     bot.send_message(message.chat.id, coins.get_rate(vals[0], vals[1]), parse_mode='HTML')
 
 
+@bot.message_handler(
+    func=lambda message: message.text is not None and '/stock ' in message.text and message.content_type == 'text')
+def crypto_hanler(message):
+    ticker = message.text.replace('/stock ', '')
+    statsm.register(message.chat.id, f'stock-{ticker}')
+    bot.send_message(message.chat.id, coins.get_stock_rate(ticker), parse_mode='HTML')
+
+
 @bot.message_handler(commands=['stop'])
 def stop_handler(message):
     global data
@@ -194,10 +202,10 @@ def smok_handler(message):
         delay = end_day(1, message.chat.id)
         print(f'Day ended for chat {message.chat.id}, delay setted to {delay} mins')
         if datetime.datetime.today().weekday() >= 4:
-            msg = 'До понедельника) Хороших выходных! ' + emoji['cool']
+            msg = 'Мой дозор окончен.\nХороших выходных! ' + emoji['cool']
             delay = end_day(3, message.chat.id)
             print(f'Week ended for chat {message.chat.id}, delay setted to {delay} mins')
-        bot.send_message(message.chat.id, msg)
+        bot.send_message(message.chat.id, msg, parse_mode='HTML')
     print(f'Saving delay {delay} to chat {message.chat.id}')
     save()
     statsm.register(message.chat.id, 'smoking')
@@ -358,7 +366,7 @@ def weather_handler(message):
     else:
         msg = 'Прогноз погоды недоступен, проблемы с их АПИ'
     statsm.register(message.chat.id, 'weather')
-    bot.send_message(message.chat.id, msg)
+    bot.send_message(message.chat.id, msg, parse_mode='HTML')
 
 
 @bot.message_handler(func=lambda
